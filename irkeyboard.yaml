@@ -1,0 +1,96 @@
+esphome:
+  name: irkeyboard
+  platform: ESP32
+  board: lolin32
+  includes:
+    - esp32_ble_keyboard.h
+  libraries:
+    - "t-vk/ESP32-BLE-Keyboard"
+
+logger:
+
+switch:
+  - platform: gpio
+    name: "Status LED"
+    id: status_led
+    pin:
+      # Built in LED
+      number: GPIO5
+      inverted: True
+    on_turn_on:
+      - delay: 50ms
+      - switch.turn_off: status_led
+
+custom_component:
+  - lambda: |-
+      return {new Esp32BLEKeyboard(App.get_name(), "ESPHome")};
+    components:
+      - id: ble_keyboard
+        # FIXME: This results causes a "Component already registered!" error, but works fine.
+        # The variable type is just Component, so a static_cast<Esp32BLEKeyboard *> is needed everywhere
+
+remote_receiver:
+  pin:
+    number: 22
+    inverted: True
+    mode: INPUT_PULLUP
+
+binary_sensor:
+  - platform: remote_receiver
+    name: "Pause"
+    pioneer:
+      rc_code_1: 0x2037
+    on_press:
+      - switch.turn_on: status_led
+      - lambda: (static_cast<Esp32BLEKeyboard *>(ble_keyboard))->bleKeyboard.write(KEY_MEDIA_PLAY_PAUSE);
+  - platform: remote_receiver
+    name: "Play"
+    pioneer:
+      rc_code_1: 0x2033
+    on_press:
+      - switch.turn_on: status_led
+      - lambda: (static_cast<Esp32BLEKeyboard *>(ble_keyboard))->bleKeyboard.write(KEY_MEDIA_PLAY_PAUSE);
+  - platform: remote_receiver
+    name: "Stop"
+    pioneer:
+      rc_code_1: 0x2030
+    on_press:
+      - switch.turn_on: status_led
+      - lambda: (static_cast<Esp32BLEKeyboard *>(ble_keyboard))->bleKeyboard.write(KEY_MEDIA_STOP);
+  - platform: remote_receiver
+    name: "Rewind"
+    pioneer:
+      rc_code_1: 0x2035
+    on_press:
+      - switch.turn_on: status_led
+      - lambda: (static_cast<Esp32BLEKeyboard *>(ble_keyboard))->bleKeyboard.write(KEY_MEDIA_PREVIOUS_TRACK);
+  - platform: remote_receiver
+    name: "Fast Forward"
+    pioneer:
+      rc_code_1: 0x2036
+    on_press:
+      - switch.turn_on: status_led
+      - lambda: (static_cast<Esp32BLEKeyboard *>(ble_keyboard))->bleKeyboard.write(KEY_MEDIA_NEXT_TRACK);
+  - platform: remote_receiver
+    name: "Rec"
+    pioneer:
+      rc_code_1: 0x2034
+    on_press:
+      - switch.turn_on: status_led
+      - lambda: ble_keyboard_text->publish_state({KEY_ESC, 0});
+  - platform: custom
+    lambda: |-
+      auto kbd = static_cast<Esp32BLEKeyboard *>(ble_keyboard);
+      return {kbd->connected_binarysensor};
+    binary_sensors:
+      - name: "Connected"
+
+text_sensor:
+  - platform: custom
+    lambda: |-
+      auto kbd = static_cast<Esp32BLEKeyboard *>(ble_keyboard);
+      return {kbd->textsensor};
+    text_sensors:
+      - id: ble_keyboard_text
+    # Use with lambda: ble_keyboard_text->publish_state("Hello, World!")
+    # Note: media keys are special, they are are of type MediaKeyReport and can't be converted to strings
